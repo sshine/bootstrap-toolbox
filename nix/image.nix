@@ -1,28 +1,22 @@
-# The bootstrap toolbox: a minimal OCI image published to ghcr.io while the
-# on-prem registry is still being stood up. It carries just enough network
-# tooling to probe connectivity during cluster bootstrap. Built with dockerTools
-# (no KVM step, so it builds in GitHub Actions) and pushed to ghcr with skopeo.
+# A minimal OCI image published to ghcr while the on-prem registry is stood up.
+# dockerTools.buildImage needs no KVM, so it builds in GitHub Actions.
 { ... }:
 {
   perSystem =
     { pkgs, ... }:
     let
-      # Everything on PATH once exec'd in. cacert + SSL_CERT_FILE below let curl
-      # reach TLS endpoints. This is a connectivity-probe toolbox, not a build
-      # image — deliberately no nix/nodejs/make; add those only if it grows into
-      # building things in-cluster.
       tools = with pkgs; [
-        # Network probes — the reason this image exists during bootstrap.
+        # Network probes.
         netcat
         curl
         nmap
         openssh
 
-        # Cluster tooling for poking at the bootstrap from inside a pod.
+        # Cluster tooling.
         kubectl
         kubernetes-helm
 
-        # System programs for a usable pod shell.
+        # Shell.
         git
         skopeo
         ripgrep
@@ -33,7 +27,7 @@
         coreutils
         bashInteractive
 
-        # Compression / archives.
+        # Compression.
         gnutar
         gzip
         bzip2
@@ -43,13 +37,11 @@
         cacert
       ];
 
-      # Populate /bin from a single merged environment so PATH=/bin is all the
-      # image config needs. fakeNss gives root a passwd entry; binSh/usrBinEnv
-      # satisfy `#!/bin/sh` and `#!/usr/bin/env` shebangs.
+      # binSh/usrBinEnv satisfy `#!/bin/sh` and `#!/usr/bin/env` shebangs; NSS
+      # files are written in extraCommands rather than pulled from fakeNss.
       rootEnv = pkgs.buildEnv {
         name = "bootstrap-toolbox-root-env";
         paths = tools ++ [
-          pkgs.dockerTools.fakeNss
           pkgs.dockerTools.binSh
           pkgs.dockerTools.usrBinEnv
         ];
@@ -65,11 +57,23 @@
         tag = "latest";
         copyToRoot = rootEnv;
 
-        # /workspace exists so it is a valid WorkingDir with no volume attached,
-        # and is the natural mount point for the persistent PVC (see deploy/).
+        # /workspace is the WorkingDir and the PVC mount point (see deploy/).
+        # NSS files must be regular files, not fakeNss's store symlinks, or
+        # containerd's create-time user lookup rejects them; toolbox=1000 matches
+        # the uid deploy/ runs as. /etc arrives read-only, so make it writable.
         extraCommands = ''
-          mkdir -p root tmp workspace
+          mkdir -p root tmp workspace etc
           chmod 1777 tmp
+          chmod u+w etc
+          printf '%s\n' \
+            'root:x:0:0:root:/root:/bin/sh' \
+            'toolbox:x:1000:1000:toolbox:/workspace:/bin/sh' \
+            'nobody:x:65534:65534:nobody:/:/bin/sh' > etc/passwd
+          printf '%s\n' \
+            'root:x:0:' \
+            'toolbox:x:1000:' \
+            'nogroup:x:65534:' > etc/group
+          printf 'hosts: files dns\n' > etc/nsswitch.conf
         '';
 
         config = {
