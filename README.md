@@ -54,3 +54,9 @@ Network probes (`netcat`, `curl`, `nmap`, `openssh`), cluster tooling
 (`kubectl`, `helm`, `skopeo`), plus `git`, `ripgrep`, standard shell utilities,
 compression tools, and CA certificates. This is a connectivity toolbox, not a
 build image — no `nix`/`node`/`make`. Add tools in `nix/image.nix`.
+
+`nix/bashrc.bash` is installed as `/etc/bashrc`, so an interactive shell comes
+with a prompt showing the kubectl context, bash completion (including for `k`),
+git aliases, and a history that survives pod restarts because `$HOME` is the
+PVC. Completions are read from `/share/bash-completion` — the image has no
+`/usr/share`.

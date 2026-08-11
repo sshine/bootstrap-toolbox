@@ -3,7 +3,7 @@
 { ... }:
 {
   perSystem =
-    { pkgs, ... }:
+    { config, pkgs, ... }:
     let
       tools = with pkgs; [
         # Network probes.
@@ -26,6 +26,8 @@
         findutils
         coreutils
         bashInteractive
+        bash-completion
+        less
 
         # Compression.
         gnutar
@@ -44,6 +46,7 @@
         paths = tools ++ [
           pkgs.dockerTools.binSh
           pkgs.dockerTools.usrBinEnv
+          config.packages.bashrc
         ];
         pathsToLink = [
           "/bin"
