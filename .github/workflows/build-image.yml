@@ -1,0 +1,41 @@
+name: build-image
+
+on:
+  push:
+    branches:
+    - main
+  workflow_dispatch:
+
+concurrency:
+  group: build-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, 2026-07-17
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22, 2026-03-25
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build image
+        run: nix build .#image -o image.tar.gz
+
+      - name: Push to ghcr.io
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for tag in "${GITHUB_SHA::7}" latest; do
+            nix run nixpkgs#skopeo -- copy \
+              --dest-creds "$REGISTRY_USER:$REGISTRY_TOKEN" \
+              docker-archive:image.tar.gz \
+              "docker://ghcr.io/sshine/bootstrap-toolbox:$tag"
+          done

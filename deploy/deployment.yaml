@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bootstrap-toolbox
+  labels:
+    app: bootstrap-toolbox
+spec:
+  replicas: 1
+  # Recreate, not RollingUpdate: the RWO PVC attaches to one pod at a time.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: bootstrap-toolbox
+  template:
+    metadata:
+      labels:
+        app: bootstrap-toolbox
+    spec:
+      containers:
+        - name: toolbox
+          # Overridden by the images: transformer in kustomization.yaml.
+          image: ghcr.io/sshine/bootstrap-toolbox:latest
+          command: ["/bin/sleep", "infinity"]
+          volumeMounts:
+            - name: data
+              mountPath: /workspace
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: bootstrap-toolbox-data

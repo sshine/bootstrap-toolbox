@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bootstrap-toolbox-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # Default size; override in kustomization.yaml (see the size patch there).
+      storage: 1Gi

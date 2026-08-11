@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - pvc.yaml
+  - deployment.yaml
+
+# Image name/tag live here, not in deployment.yaml. Change them in place, or:
+#   kustomize edit set image ghcr.io/sshine/bootstrap-toolbox=<registry>/<repo>:<tag>
+images:
+  - name: ghcr.io/sshine/bootstrap-toolbox
+    newTag: latest
+
+# The PVC defaults to 1Gi (deploy/pvc.yaml). To resize, uncomment and edit:
+#patches:
+#  - target:
+#      kind: PersistentVolumeClaim
+#      name: bootstrap-toolbox-data
+#    patch: |
+#      - op: replace
+#        path: /spec/resources/requests/storage
+#        value: 10Gi
