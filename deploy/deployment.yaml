@@ -17,11 +17,27 @@ spec:
       labels:
         app: bootstrap-toolbox
     spec:
+      # Restricted Pod Security Standard; fsGroup makes the PVC writable by 1000.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: toolbox
           # Overridden by the images: transformer in kustomization.yaml.
           image: ghcr.io/sshine/bootstrap-toolbox:latest
           command: ["/bin/sleep", "infinity"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            # /root (the image's HOME) is not writable as UID 1000; use the PVC.
+            - name: HOME
+              value: /workspace
           volumeMounts:
             - name: data
               mountPath: /workspace
