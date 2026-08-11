@@ -16,6 +16,7 @@
       # sandbox runs hooks without the devshell PATH, so a bare name is not found.
       treefmt = lib.getExe config.treefmt.build.wrapper;
       deadnix = lib.getExe pkgs.deadnix;
+      shellcheck = lib.getExe pkgs.shellcheck;
     in
     {
       hk-nix.settings.hooks = {
@@ -28,9 +29,20 @@
           };
         };
 
-        "pre-push".steps.deadnix = {
-          glob = "*.nix";
-          check = "${deadnix} --fail {{files}}";
+        "pre-push".steps = {
+          deadnix = {
+            glob = "*.nix";
+            check = "${deadnix} --fail {{files}}";
+          };
+
+          # treefmt runs shfmt; shellcheck is the linting half of the same story.
+          shellcheck = {
+            glob = [
+              "*.bash"
+              "*.sh"
+            ];
+            check = "${shellcheck} {{files}}";
+          };
         };
 
         "commit-msg".steps.conventional.builtin = config.hk-nix.builtins.check_conventional_commit;
