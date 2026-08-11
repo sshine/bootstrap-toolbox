@@ -52,6 +52,7 @@
           "/bin"
           "/etc"
           "/share"
+          "/usr"
         ];
       };
 
