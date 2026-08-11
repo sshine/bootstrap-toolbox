@@ -16,6 +16,10 @@
         kubectl
         kubernetes-helm
 
+        # Nix itself, for bootstrap builds from inside the cluster. Runs rootless
+        # (see NIX_CONFIG below), so it needs no daemon and no nixbld users.
+        nix
+
         # Shell.
         git
         skopeo
@@ -90,6 +94,13 @@
             "PATH=/bin"
             "HOME=/root"
             "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+            "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+            # Rootless nix under the restricted PSA: no daemon, no nixbld users,
+            # and no user-namespace sandbox (unavailable to an unprivileged pod).
+            # The baked /nix/store is root-owned and read-only, so realise into a
+            # chroot store on the writable PVC — logical paths stay /nix/store, so
+            # cache.nixos.org substitution still works, and it persists restarts.
+            "NIX_CONFIG=experimental-features = nix-command flakes\naccept-flake-config = true\nbuild-users-group = \nsandbox = false\nstore = /workspace/nix"
           ];
         };
       };

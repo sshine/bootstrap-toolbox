@@ -51,9 +51,16 @@ Two things are parameterized in `deploy/kustomization.yaml`:
 ## Contents
 
 Network probes (`netcat`, `curl`, `nmap`, `openssh`), cluster tooling
-(`kubectl`, `helm`, `skopeo`), plus `git`, `ripgrep`, standard shell utilities,
-compression tools, and CA certificates. This is a connectivity toolbox, not a
-build image — no `nix`/`node`/`make`. Add tools in `nix/image.nix`.
+(`kubectl`, `helm`, `skopeo`), `nix` itself, plus `git`, `ripgrep`, standard
+shell utilities, compression tools, and CA certificates. Add tools in
+`nix/image.nix`.
+
+`nix` runs rootless (no daemon, no `nixbld` users, no sandbox — none are
+available to a restricted-PSA pod). The baked `/nix/store` is root-owned and
+read-only, so `NIX_CONFIG` sets `store = /workspace/nix`: a chroot store on the
+PVC whose logical paths are still `/nix/store`, so `cache.nixos.org` substitution
+works and realised paths survive pod restarts. `nix run nixpkgs#<pkg>` and
+`nix build` work out of the box as UID 1000.
 
 `nix/bashrc.bash` is installed as `/etc/bashrc`, so an interactive shell comes
 with a prompt showing the kubectl context, bash completion (including for `k`),
