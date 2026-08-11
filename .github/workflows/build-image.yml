@@ -33,8 +33,11 @@ jobs:
           REGISTRY_USER: ${{ github.actor }}
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # nixpkgs skopeo rejects the runner's v1 registries.conf; use an empty v2 one.
+          echo 'unqualified-search-registries = []' > registries.conf
+          export CONTAINERS_REGISTRIES_CONF="$PWD/registries.conf"
           for tag in "${GITHUB_SHA::7}" latest; do
-            nix run nixpkgs#skopeo -- copy \
+            nix run nixpkgs#skopeo -- --insecure-policy copy \
               --dest-creds "$REGISTRY_USER:$REGISTRY_TOKEN" \
               docker-archive:image.tar.gz \
               "docker://ghcr.io/sshine/bootstrap-toolbox:$tag"
