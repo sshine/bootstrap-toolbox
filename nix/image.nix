@@ -65,6 +65,11 @@
         tag = "latest";
         copyToRoot = rootEnv;
 
+        # Register the baked closure in /nix/var/nix/db so the read-only root
+        # store below is a usable substituter — without it nix treats the store
+        # as empty and re-fetches everything from cache.
+        includeNixDB = true;
+
         # /workspace is the WorkingDir and the PVC mount point (see deploy/).
         # NSS files must be regular files, not fakeNss's store symlinks, or
         # containerd's create-time user lookup rejects them; toolbox=1000 matches
@@ -100,7 +105,14 @@
             # The baked /nix/store is root-owned and read-only, so realise into a
             # chroot store on the writable PVC — logical paths stay /nix/store, so
             # cache.nixos.org substitution still works, and it persists restarts.
-            "NIX_CONFIG=experimental-features = nix-command flakes\naccept-flake-config = true\nbuild-users-group = \nsandbox = false\nstore = /workspace/nix"
+            # The baked store is listed first as a read-only substituter (needs
+            # the read-only-local-store feature), so its paths are copied locally
+            # instead of re-downloaded; cache.nixos.org covers everything else.
+            # require-sigs is off because includeNixDB registers the baked closure
+            # without signatures, so a signed import from the local store is
+            # impossible; the baked store is first-party and cache.nixos.org is
+            # reached over TLS, so the residual exposure is acceptable here.
+            "NIX_CONFIG=experimental-features = nix-command flakes read-only-local-store\naccept-flake-config = true\nbuild-users-group = \nsandbox = false\nrequire-sigs = false\nstore = /workspace/nix\nsubstituters = local?read-only=true https://cache.nixos.org"
           ];
         };
       };

@@ -58,9 +58,16 @@ shell utilities, compression tools, and CA certificates. Add tools in
 `nix` runs rootless (no daemon, no `nixbld` users, no sandbox — none are
 available to a restricted-PSA pod). The baked `/nix/store` is root-owned and
 read-only, so `NIX_CONFIG` sets `store = /workspace/nix`: a chroot store on the
-PVC whose logical paths are still `/nix/store`, so `cache.nixos.org` substitution
-works and realised paths survive pod restarts. `nix run nixpkgs#<pkg>` and
-`nix build` work out of the box as UID 1000.
+PVC whose logical paths are still `/nix/store`, so realised paths survive pod
+restarts. `nix run nixpkgs#<pkg>` and `nix build` work as UID 1000.
+
+The baked closure is registered in the image's read-only Nix DB
+(`buildImageWithNixDb`) and listed first as a substituter, so its paths are
+copied locally instead of re-downloaded; `cache.nixos.org` covers the rest.
+Signature checking is off because the DB registration carries no signatures —
+the baked store is first-party and the cache is reached over TLS, which is the
+accepted trade-off. A true shared-inode overlay store would need a privileged
+OverlayFS mount that `restricted` forbids.
 
 `nix/bashrc.bash` is installed as `/etc/bashrc`, so an interactive shell comes
 with a prompt showing the kubectl context, bash completion (including for `k`),
