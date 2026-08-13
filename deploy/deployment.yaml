@@ -25,6 +25,23 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      # Mounting the PVC at /nix would shadow the baked store — and with it every
+      # binary in /bin — so copy that store onto the PVC before the pod starts.
+      # Skipped on later starts; watch the first one with
+      #   kubectl logs deploy/bootstrap-toolbox -c seed-nix -f
+      initContainers:
+        - name: seed-nix
+          # Overridden by the images: transformer in kustomization.yaml.
+          image: ghcr.io/sshine/bootstrap-toolbox:latest
+          command: ["/bin/seed-nix"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /seed
+              subPath: nix
       containers:
         - name: toolbox
           # Overridden by the images: transformer in kustomization.yaml.
@@ -39,8 +56,15 @@ spec:
             - name: HOME
               value: /workspace
           volumeMounts:
+            # One PVC, two subPaths: the nix store has to keep its real location
+            # (a store mounted anywhere else is a diverted store, which nix can
+            # only build in through a chroot this pod may not create).
+            - name: data
+              mountPath: /nix
+              subPath: nix
             - name: data
               mountPath: /workspace
+              subPath: workspace
       volumes:
         - name: data
           persistentVolumeClaim:

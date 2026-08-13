@@ -11,7 +11,7 @@ images:
   - name: ghcr.io/sshine/bootstrap-toolbox
     newTag: latest
 
-# The PVC defaults to 1Gi (deploy/pvc.yaml). To resize, uncomment and edit:
+# The PVC defaults to 20Gi (deploy/pvc.yaml). To resize, uncomment and edit:
 #patches:
 #  - target:
 #      kind: PersistentVolumeClaim
@@ -19,4 +19,4 @@ images:
 #    patch: |
 #      - op: replace
 #        path: /spec/resources/requests/storage
-#        value: 10Gi
+#        value: 20Gi

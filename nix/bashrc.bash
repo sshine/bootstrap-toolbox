@@ -24,6 +24,10 @@ source <(kubectl completion bash)
 # The lazy loader is never asked about `k`, so hand it kubectl's completion.
 eval "$(complete -p kubectl | sed 's/kubectl$/k/')"
 
+# just ships no static completion file, only a generator.
+# shellcheck source=/dev/null
+source <(just --completions bash)
+
 alias gs='git status'
 alias gl='git log'
 alias gap='git add -p'

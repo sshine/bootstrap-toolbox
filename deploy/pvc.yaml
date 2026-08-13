@@ -7,5 +7,6 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      # Default size; override in kustomization.yaml (see the size patch there).
-      storage: 1Gi
+      # Holds the seeded nix store plus everything built in-pod, so it is sized
+      # well above the image. Override in kustomization.yaml (see the patch there).
+      storage: 20Gi

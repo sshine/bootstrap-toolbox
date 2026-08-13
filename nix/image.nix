@@ -22,6 +22,7 @@
 
         # Shell.
         git
+        just
         skopeo
         ripgrep
         gnugrep
@@ -51,6 +52,7 @@
           pkgs.dockerTools.binSh
           pkgs.dockerTools.usrBinEnv
           config.packages.bashrc
+          config.packages.seed-nix
         ];
         pathsToLink = [
           "/bin"
@@ -65,12 +67,12 @@
         tag = "latest";
         copyToRoot = rootEnv;
 
-        # Register the baked closure in /nix/var/nix/db so the read-only root
-        # store below is a usable substituter — without it nix treats the store
-        # as empty and re-fetches everything from cache.
+        # Register the baked closure in /nix/var/nix/db, so once the store is
+        # seeded onto the PVC nix treats those paths as valid instead of
+        # re-fetching the whole closure from cache.
         includeNixDB = true;
 
-        # /workspace is the WorkingDir and the PVC mount point (see deploy/).
+        # /workspace is the WorkingDir and a PVC mount point (see deploy/).
         # NSS files must be regular files, not fakeNss's store symlinks, or
         # containerd's create-time user lookup rejects them; toolbox=1000 matches
         # the uid deploy/ runs as. /etc arrives read-only, so make it writable.
@@ -87,6 +89,10 @@
             'toolbox:x:1000:' \
             'nogroup:x:65534:' > etc/group
           printf 'hosts: files dns\n' > etc/nsswitch.conf
+          # /bin's symlinks resolve into the store the PVC provides, so the init
+          # container has to be able to tell which store this image expects.
+          # Written outside /nix, where the PVC mount cannot shadow it.
+          printf '%s\n' ${rootEnv} > .nix-store-stamp
         '';
 
         config = {
@@ -101,18 +107,22 @@
             "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
             "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
             # Rootless nix under the restricted PSA: no daemon, no nixbld users,
-            # and no user-namespace sandbox (unavailable to an unprivileged pod).
-            # The baked /nix/store is root-owned and read-only, so realise into a
-            # chroot store on the writable PVC — logical paths stay /nix/store, so
-            # cache.nixos.org substitution still works, and it persists restarts.
-            # The baked store is listed first as a read-only substituter (needs
-            # the read-only-local-store feature), so its paths are copied locally
-            # instead of re-downloaded; cache.nixos.org covers everything else.
-            # require-sigs is off because includeNixDB registers the baked closure
-            # without signatures, so a signed import from the local store is
-            # impossible; the baked store is first-party and cache.nixos.org is
-            # reached over TLS, so the residual exposure is acceptable here.
-            "NIX_CONFIG=experimental-features = nix-command flakes read-only-local-store\naccept-flake-config = true\nbuild-users-group = \nsandbox = false\nrequire-sigs = false\nstore = /workspace/nix\nsubstituters = local?read-only=true https://cache.nixos.org"
+            # and no sandbox — RuntimeDefault seccomp denies CLONE_NEWUSER, so the
+            # namespaces a sandboxed build needs cannot be created.
+            #
+            # The store must stay at its real location. A store elsewhere (`store
+            # = /workspace/nix`) is a *diverted* store, and nix forces a chroot for
+            # those regardless of `sandbox`, to map the real directory onto
+            # /nix/store. That chroot cannot be created here, and sandbox-fallback
+            # then drops it silently: the builder runs against the image's baked
+            # /nix/store instead, which holds the runtime closure but none of the
+            # build-only inputs. So sandbox-fallback is off — a diverted store
+            # reintroduced later fails loudly rather than a build input away.
+            #
+            # /nix is therefore a PVC seeded from the baked store by the init
+            # container (see deploy/), which also makes realised paths survive
+            # restarts. min-free/max-free let nix auto-GC once the PVC runs low.
+            "NIX_CONFIG=experimental-features = nix-command flakes\naccept-flake-config = true\nbuild-users-group = \nsandbox = false\nsandbox-fallback = false\nauto-optimise-store = true\nmin-free = 2147483648\nmax-free = 5368709120"
           ];
         };
       };
