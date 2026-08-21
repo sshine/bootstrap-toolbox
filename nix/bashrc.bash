@@ -24,9 +24,21 @@ source <(kubectl completion bash)
 # The lazy loader is never asked about `k`, so hand it kubectl's completion.
 eval "$(complete -p kubectl | sed 's/kubectl$/k/')"
 
-# just ships no static completion file, only a generator.
+# just and helm-vendor ship no static completion file, only a generator.
 # shellcheck source=/dev/null
 source <(just --completions bash)
+# shellcheck source=/dev/null
+source <(helm-vendor completion bash)
+
+if [ "${TERM-}" = xterm ] && infocmp xterm-256color >/dev/null 2>&1; then
+  TERM=xterm-256color
+fi
+
+eval "$(dircolors -b)"
+
+alias ls='eza -l'
+alias grep='grep --color=auto'
+export LESS=-FR
 
 alias gs='git status'
 alias gl='git log'
@@ -43,10 +55,14 @@ __kube_prompt() {
   ctx=${out%%$'\n'*}
   ns=${out#*$'\n'}
   [ -n "$ctx" ] || return
-  local G=$'\001\033[01;32m\002' R=$'\001\033[00m\002'
-  echo " : ${G}${ctx}${R}:${G}${ns:-default}${R}"
+  echo " : ${__G}${ctx}${__R}:${__G}${ns:-default}${__R}"
 }
-PS1='[\[\033[01;32m\]\u\[\033[00m\]$(__kube_prompt) : \[\033[01;32m\]\w\[\033[00m\]] \$ '
+if [ -n "$LS_COLORS" ]; then
+  __G=$'\001\033[01;32m\002' __R=$'\001\033[00m\002'
+else
+  __G='' __R=''
+fi
+PS1='[${__G}\u${__R}$(__kube_prompt) : ${__G}\w${__R}] \$ '
 
 # append to the history file, don't overwrite it
 shopt -s histappend
@@ -65,3 +81,5 @@ shopt -s checkwinsize
 # If set, the pattern "**" used in a pathname expansion context will
 # match all files and zero or more directories and subdirectories.
 shopt -s globstar
+
+eval "$(atuin init bash --disable-up-arrow)"

@@ -39,9 +39,13 @@ A pod's root filesystem is writable but ephemeral — anything outside `/nix` an
 in `/workspace`.
 
 ```sh
-kubectl apply -k deploy
+just service-deploy                 # or: just service-deploy <tag>
 kubectl exec -it deploy/bootstrap-toolbox -- bash
 ```
+
+`service-deploy` pins the image tag through a generated overlay and server-side
+applies the result, so the tag you just pushed does not have to be committed
+first. `kubectl apply -k deploy` deploys whatever tag `deploy/` names.
 
 Two things are parameterized in `deploy/kustomization.yaml`:
 
@@ -52,9 +56,19 @@ Two things are parameterized in `deploy/kustomization.yaml`:
 ## Contents
 
 Network probes (`netcat`, `curl`, `nmap`, `openssh`), cluster tooling
-(`kubectl`, `helm`, `skopeo`), `nix` itself, plus `git`, `ripgrep`, standard
-shell utilities, compression tools, and CA certificates. Add tools in
-`nix/image.nix`.
+(`kubectl`, `helm`, `helm-vendor`, `skopeo`), `nix` itself, plus `git`,
+`ripgrep`, `eza`, `atuin`, standard shell utilities, compression tools, and CA
+certificates. Add tools in `nix/image.nix`.
+
+`helm-vendor` is not in nixpkgs; its flake carries an overlay, applied in
+`nix/pkgs.nix`, which is why `nix/image.nix` can list it like any other package.
+
+The baked store also stands in for the binary cache helm-vendor has nowhere to
+publish to. A pod that clones [k8s-infra](../k8s-infra) and enters its devshell
+asks for the same store path this image already carries, so nothing compiles
+Rust in-cluster — but only while both flakes resolve helm-vendor's own inputs
+identically. Both pin it with the same `follows`; drop one and the path diverges
+and the pod builds a whole Rust toolchain to get a binary it already has.
 
 `nix` runs rootless (no daemon, no `nixbld` users, no sandbox — a restricted-PSA
 pod cannot create the namespaces one needs, since `RuntimeDefault` seccomp denies
@@ -88,3 +102,11 @@ with a prompt showing the kubectl context, bash completion (including for `k`),
 git aliases, and a history that survives pod restarts because `$HOME` is the
 PVC. Completions are read from `/share/bash-completion` — the image has no
 `/usr/share`.
+
+Colour is on where the terminal admits to it. `kubectl exec` forwards the
+client's `TERM` verbatim, and a bare `xterm` is upgraded to `xterm-256color`
+when ncurses' terminfo has the entry; `dircolors` then supplies the palette
+`eza` and `ls` share, and the empty `LS_COLORS` it yields for a terminal it
+doesn't recognise is what leaves the prompt uncoloured too. `^R` searches
+everything atuin has recorded, across sessions and pods, while up-arrow stays
+bash's own history.

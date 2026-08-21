@@ -15,6 +15,7 @@
         # Cluster tooling.
         kubectl
         kubernetes-helm
+        helm-vendor
 
         # Nix itself, for bootstrap builds from inside the cluster. Runs rootless
         # (see NIX_CONFIG below), so it needs no daemon and no nixbld users.
@@ -32,7 +33,10 @@
         coreutils
         bashInteractive
         bash-completion
+        atuin
+        eza
         less
+        ncurses
 
         # Compression.
         gnutar
