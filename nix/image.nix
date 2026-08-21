@@ -1,4 +1,4 @@
-# A minimal OCI image published to ghcr while the on-prem registry is stood up.
+# An OCI image published to ghcr while the on-prem registry is stood up.
 # dockerTools.buildImage needs no KVM, so it builds in GitHub Actions.
 { ... }:
 {
@@ -16,6 +16,9 @@
         kubectl
         kubernetes-helm
         helm-vendor
+        vault
+        jq
+        betterleaks
 
         # Nix itself, for bootstrap builds from inside the cluster. Runs rootless
         # (see NIX_CONFIG below), so it needs no daemon and no nixbld users.
@@ -48,13 +51,33 @@
         cacert
       ];
 
+      scripts = pkgs.runCommandLocal "toolbox-scripts" { } ''
+        install -Dm555 ${../tools/toolbox-apply} $out/bin/toolbox-apply
+        install -Dm555 ${../tools/toolbox-connectivity-test} $out/bin/toolbox-connectivity-test
+        install -Dm555 ${../tools/toolbox-gc} $out/bin/toolbox-gc
+      '';
+
+      nixConf = ''
+        experimental-features = nix-command flakes
+        accept-flake-config = true
+        build-users-group =
+        sandbox = false
+        sandbox-fallback = false
+        auto-optimise-store = true
+        keep-outputs = false
+        keep-derivations = false
+        min-free = 2147483648
+        max-free = 5368709120
+      '';
+
       # binSh/usrBinEnv satisfy `#!/bin/sh` and `#!/usr/bin/env` shebangs; NSS
       # files are written in extraCommands rather than pulled from fakeNss.
       rootEnv = pkgs.buildEnv {
-        name = "bootstrap-toolbox-root-env";
+        name = "toolbox-root-env";
         paths = tools ++ [
           pkgs.dockerTools.binSh
           pkgs.dockerTools.usrBinEnv
+          scripts
           config.packages.bashrc
           config.packages.seed-nix
         ];
@@ -110,23 +133,7 @@
             "HOME=/root"
             "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
             "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
-            # Rootless nix under the restricted PSA: no daemon, no nixbld users,
-            # and no sandbox — RuntimeDefault seccomp denies CLONE_NEWUSER, so the
-            # namespaces a sandboxed build needs cannot be created.
-            #
-            # The store must stay at its real location. A store elsewhere (`store
-            # = /workspace/nix`) is a *diverted* store, and nix forces a chroot for
-            # those regardless of `sandbox`, to map the real directory onto
-            # /nix/store. That chroot cannot be created here, and sandbox-fallback
-            # then drops it silently: the builder runs against the image's baked
-            # /nix/store instead, which holds the runtime closure but none of the
-            # build-only inputs. So sandbox-fallback is off — a diverted store
-            # reintroduced later fails loudly rather than a build input away.
-            #
-            # /nix is therefore a PVC seeded from the baked store by the init
-            # container (see deploy/), which also makes realised paths survive
-            # restarts. min-free/max-free let nix auto-GC once the PVC runs low.
-            "NIX_CONFIG=experimental-features = nix-command flakes\naccept-flake-config = true\nbuild-users-group = \nsandbox = false\nsandbox-fallback = false\nauto-optimise-store = true\nmin-free = 2147483648\nmax-free = 5368709120"
+            "NIX_CONFIG=${nixConf}"
           ];
         };
       };

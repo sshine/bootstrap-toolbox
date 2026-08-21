@@ -40,6 +40,7 @@
             glob = [
               "*.bash"
               "*.sh"
+              "tools/*"
             ];
             check = "${shellcheck} {{files}}";
           };

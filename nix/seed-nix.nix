@@ -6,7 +6,7 @@
   perSystem =
     { pkgs, ... }:
     {
-      packages.seed-nix = pkgs.runCommandLocal "bootstrap-toolbox-seed-nix" { } ''
+      packages.seed-nix = pkgs.runCommandLocal "toolbox-seed-nix" { } ''
         install -Dm555 ${./seed-nix.bash} $out/bin/seed-nix
       '';
     };

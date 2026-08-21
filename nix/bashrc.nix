@@ -6,7 +6,7 @@
   perSystem =
     { pkgs, ... }:
     {
-      packages.bashrc = pkgs.runCommandLocal "bootstrap-toolbox-bashrc" { } ''
+      packages.bashrc = pkgs.runCommandLocal "toolbox-bashrc" { } ''
         install -Dm444 ${./bashrc.bash} $out/etc/bashrc
         install -Dm444 ${./profile.bash} $out/etc/profile
       '';

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+svc="${1:-}"
+if [ -z "$svc" ]; then
+  echo "usage: toolbox-apply <service> [--dry-run]" >&2
+  exit 2
+fi
+shift
+
+repo="${TOOLBOX_REPO:-.}"
+extra=("$@")
+
+result=$(nix build "${repo}#${svc}" --no-link --print-out-paths)
+
+apply=(kubectl apply --server-side --force-conflicts --field-manager=toolbox "${extra[@]}")
+
+crds=$(jq '[.items[] | select(.kind == "CustomResourceDefinition")] | length' "$result")
+if [ "$crds" -gt 0 ]; then
+  echo "--- applying $crds CRD(s) first ---"
+  jq '{apiVersion, kind, items: [.items[] | select(.kind == "CustomResourceDefinition")]}' "$result" \
+    | "${apply[@]}" -f -
+  echo "--- waiting for CRDs to establish ---"
+  sleep 3
+fi
+
+echo "--- applying $svc ---"
+"${apply[@]}" -f "$result"

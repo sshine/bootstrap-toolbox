@@ -1,9 +1,15 @@
 # bootstrap-toolbox
 
-A minimal OCI image published to `ghcr.io/sshine/bootstrap-toolbox` while the
-on-prem registry for the [k8s-infra](../k8s-infra) cluster is being stood up. It
-carries just enough network tooling — `netcat`, `curl`, `nmap` — to probe
-connectivity from inside the cluster during bootstrap.
+The in-cluster toolbox for the [k8s-infra](../k8s-infra) cluster, published to
+`ghcr.io/sshine/bootstrap-toolbox` while the on-prem registry is being stood up.
+It carries the toolchain that renders and applies services from inside the
+cluster, plus enough network tooling — `netcat`, `curl`, `nmap` — to probe
+connectivity during bootstrap.
+
+`nix/image.nix` is kept identical to `k8s-infra/nix/toolbox-image.nix`: the same
+image, published to two registries, so that proving the on-prem CI → registry
+path changes where the image comes from and nothing about what it contains. Only
+the image name and the package attributes may differ; diff the two files.
 
 The flake is [dendritic](https://flake.parts): every `.nix` file under `nix/` is
 a flake-parts module, imported by `import-tree`.
@@ -32,7 +38,8 @@ SKOPEO_DEST_CREDS="<user>:<token>" just push latest
 ## Deploy
 
 `deploy/` is a kustomize bundle: a single-replica Deployment plus a
-`ReadWriteOnce` PVC mounted at `/workspace` (the image's working directory).
+`ReadWriteOnce` PVC backing `/nix` and `/workspace` (the image's working
+directory).
 
 A pod's root filesystem is writable but ephemeral — anything outside `/nix` and
 `/workspace` is lost when the pod restarts or reschedules. Keep persistent work
@@ -56,19 +63,24 @@ Two things are parameterized in `deploy/kustomization.yaml`:
 ## Contents
 
 Network probes (`netcat`, `curl`, `nmap`, `openssh`), cluster tooling
-(`kubectl`, `helm`, `helm-vendor`, `skopeo`), `nix` itself, plus `git`,
-`ripgrep`, `eza`, `atuin`, standard shell utilities, compression tools, and CA
-certificates. Add tools in `nix/image.nix`.
+(`kubectl`, `helm`, `helm-vendor`, `vault`, `jq`, `skopeo`), `betterleaks` for
+secret scanning, `nix` itself, plus `git`, `just`, `ripgrep`, `eza`, `atuin`,
+standard shell utilities, compression tools, and CA certificates. Add tools in
+`nix/image.nix`.
+
+Vault's CLI is BSL-1.1; `nix/pkgs.nix` scopes an `allowUnfreePredicate` to it
+and nothing else.
+
+`tools/` is baked into `/bin` as well: `toolbox-apply` (render one service and
+apply it, CRDs first), `toolbox-gc` and `toolbox-connectivity-test`. They are on
+`PATH` before any clone exists, and they are the same files k8s-infra's
+`just service-deploy` runs.
 
 `helm-vendor` is not in nixpkgs; its flake carries an overlay, applied in
 `nix/pkgs.nix`, which is why `nix/image.nix` can list it like any other package.
-
-The baked store also stands in for the binary cache helm-vendor has nowhere to
-publish to. A pod that clones [k8s-infra](../k8s-infra) and enters its devshell
-asks for the same store path this image already carries, so nothing compiles
-Rust in-cluster — but only while both flakes resolve helm-vendor's own inputs
-identically. Both pin it with the same `follows`; drop one and the path diverges
-and the pod builds a whole Rust toolchain to get a binary it already has.
+k8s-infra declares the same input for the same reason, so both flakes build it
+from source without a binary cache behind it — the price of the two images being
+one image.
 
 `nix` runs rootless (no daemon, no `nixbld` users, no sandbox — a restricted-PSA
 pod cannot create the namespaces one needs, since `RuntimeDefault` seccomp denies

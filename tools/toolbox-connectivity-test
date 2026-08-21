@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+git_host="${GIT_HOST:-git.sitcloud.dk}"
+harbor_host="${HARBOR_HOST:-reg.sitcloud.dk}"
+
+pass=0 fail=0
+ok()   { printf '  \033[32mPASS\033[0m  %s\n' "$1"; pass=$((pass + 1)); }
+bad()  { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; fail=$((fail + 1)); }
+
+tcp() {
+  local host=$1 port=$2
+  timeout 5 bash -c "exec 3<>/dev/tcp/${host}/${port}" 2>/dev/null
+}
+
+echo "== DNS + TCP =="
+if tcp "$git_host" 22;    then ok "TCP ${git_host}:22 (SSH)";     else bad "TCP ${git_host}:22 (SSH)"; fi
+if tcp "$harbor_host" 443; then ok "TCP ${harbor_host}:443 (HTTPS)"; else bad "TCP ${harbor_host}:443 (HTTPS)"; fi
+
+echo "== SSH (GitLab deploy-key path) =="
+ssh_out=$(ssh -T -o BatchMode=yes -o ConnectTimeout=5 \
+  -o StrictHostKeyChecking=accept-new "git@${git_host}" 2>&1)
+if printf '%s' "$ssh_out" | grep -qiE 'welcome|gitlab|permission denied|authenticat'; then
+  ok "ssh git@${git_host} reachable — ${ssh_out%%$'\n'*}"
+else
+  bad "ssh git@${git_host}: ${ssh_out%%$'\n'*}"
+fi
+
+echo "== HTTPS =="
+harbor_code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 \
+  "https://${harbor_host}/v2/" 2>/dev/null || echo 000)
+case "$harbor_code" in
+  200 | 401) ok "https://${harbor_host}/v2/ (HTTP ${harbor_code})" ;;
+  *)         bad "https://${harbor_host}/v2/ (HTTP ${harbor_code})" ;;
+esac
+
+if curl -sSfI --max-time 8 https://cache.nixos.org/nix-cache-info >/dev/null 2>&1; then
+  ok "https://cache.nixos.org (nix substituter)"
+else
+  bad "https://cache.nixos.org (nix substituter)"
+fi
+
+echo
+printf 'Result: %d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

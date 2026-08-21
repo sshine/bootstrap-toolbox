@@ -11,6 +11,7 @@
           inputs.hk-nix.overlays.default
           inputs.helm-vendor.overlays.default
         ];
+        config.allowUnfreePredicate = pkg: builtins.elem (inputs.nixpkgs.lib.getName pkg) [ "vault" ];
       };
     };
 }

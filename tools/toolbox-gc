@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "== df before =="
+df -h /nix | tail -1
+
+nix-collect-garbage -d
+nix store optimise
+
+echo "== df after =="
+df -h /nix | tail -1
