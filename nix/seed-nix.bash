@@ -43,8 +43,13 @@ wait "$progress" 2>/dev/null || true
 # the closure of the image now running. Paths built in-pod lose their
 # registration and become garbage for nix's next collection — that costs a
 # rebuild after an image bump, never a dangling /bin.
+#
+# tar, not cp: big-lock and reserved are mode 0600 and owned by root in the
+# image, so UID 1000 cannot read them and cp fails the container. nix recreates
+# both on demand, and reserved is 8 MiB of zeroes, so neither is worth carrying.
 rm -rf "${dest:?}/var"
-cp -dR --preserve=mode,timestamps /nix/var "$dest/var"
+tar -C /nix -cf - --exclude=var/nix/db/big-lock --exclude=var/nix/db/reserved var |
+  tar -C "$dest" -xpf -
 
 # The baked store and DB arrive read-only; nix has to add paths and record them.
 chmod u+w "$dest/store"
