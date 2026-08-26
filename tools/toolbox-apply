@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Render one service with kubenix and apply it — the in-pod equivalent of having
+# kubenix on the jumphost. Human-invoked, one service at a time; this is the
+# deliberate (non-Keel) deploy track. CRDs go first so their instances validate
+# on the same apply pass.
+#
+# Usage: toolbox-apply <service> [--dry-run]
+#   Renders `.#<service>` from the flake at $TOOLBOX_REPO (default: cwd).
 set -euo pipefail
 
 svc="${1:-}"

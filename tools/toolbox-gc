@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Reclaim space in the toolbox's persistent /nix store. Auto-GC (min-free) keeps
+# the store under the PVC ceiling on its own; run this by hand when you want to
+# trim eagerly — e.g. after building something large, or before a big render.
+#   nix-collect-garbage -d : delete unreachable paths + old profile generations
+#   nix store optimise     : hardlink-dedup identical files (belt-and-suspenders
+#                            alongside auto-optimise-store)
 set -euo pipefail
 
 echo "== df before =="
