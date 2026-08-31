@@ -14,6 +14,7 @@
 
         # Cluster tooling.
         kubectl
+        kubectx
         kubernetes-helm
         helm-vendor
         vault
@@ -38,6 +39,7 @@
         bash-completion
         atuin
         eza
+        neovim
         less
         ncurses
 
