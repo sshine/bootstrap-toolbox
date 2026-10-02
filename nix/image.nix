@@ -59,10 +59,16 @@
         install -Dm555 ${../tools/toolbox-gc} $out/bin/toolbox-gc
       '';
 
+      # filter-syscalls is off because fsGroup sets the setgid bit on every
+      # directory of the PVC at each mount, the store included, and the filter
+      # refuses any chmod that keeps it: a build copying a store directory fails
+      # with EPERM. The filter keeps builders from making setuid files that other
+      # users could run, and with no build users there are no other users.
       nixConf = ''
         experimental-features = nix-command flakes
         accept-flake-config = true
         build-users-group =
+        filter-syscalls = false
         sandbox = false
         sandbox-fallback = false
         auto-optimise-store = true
